@@ -15,7 +15,7 @@
   <ColumnHeader>Make a Call</ColumnHeader>
   <form on:submit|preventDefault={makeCall}>
     <label for="dial">Enter a phone number or client name</label>
-    <input id="dial" bind:value={numbertoDial} placeholder="+447982923206" />
+    <input id="dial" bind:value={numbertoDial} placeholder="+441234567890" />
     <button type="submit">Call</button>
   </form>
 </div>
