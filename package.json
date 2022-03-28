@@ -26,6 +26,8 @@
     "@twilio/voice-sdk": "^2.1.1",
     "axios": "^0.26.0",
     "bootstrap": "^5.1.3",
-    "twilio": "^3.75.0"
+    "events": "^3.3.0",
+    "twilio": "^3.75.0",
+    "util": "^0.10.0"
   }
 }
