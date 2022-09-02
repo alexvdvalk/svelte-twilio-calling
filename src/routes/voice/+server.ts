@@ -1,14 +1,29 @@
 import identity from "$lib/identityCreater";
-import VoiceResponse from "twilio/lib/twiml/VoiceResponse";
+import * as twilio from "twilio";
+// import VoiceResponse from "twilio/lib/twiml/VoiceResponse";
 
-export async function get(event) {
-  console.log(event);
+const VoiceResponse = twilio.twiml.VoiceResponse;
+
+export async function GET(event) {
+  console.log("event", event);
   const config = import.meta.env;
   const toNumberOrClientName = event.url.searchParams.get("To");
   const callerId = config.VITE_TWILIO_CALLER_ID as string;
   let twiml = new VoiceResponse();
   // If the request to the /voice endpoint is TO your Twilio Number,
   // then it is an incoming call towards your Twilio.Device.
+  console.log("toNumberOrClientName", toNumberOrClientName);
+  console.log("callerId", callerId);
+  console.log("identity", identity);
+
+  const dial = twiml.dial({ callerId });
+  dial.number(toNumberOrClientName);
+
+  console.log("res", twiml.toString());
+  const resp = new Response(twiml.toString());
+  resp.headers.set("Content-Type", "application/xml");
+  return resp;
+
   if (toNumberOrClientName == callerId) {
     let dial = twiml.dial();
 
@@ -26,12 +41,8 @@ export async function get(event) {
     twiml.say("Thanks for calling!");
   }
   console.log("twim", twiml.toString());
-  return {
-    body: twiml.toString(),
-    headers: {
-      "Content-type": "application/xml",
-    },
-  };
+
+  return new Response(twiml.toString());
 }
 
 function isAValidPhoneNumber(number) {

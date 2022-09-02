@@ -1,28 +1,24 @@
 <script lang="ts">
-  import { browser } from "$app/env";
-  import type { Call, Device } from "@twilio/voice-sdk";
   import Heading from "$lib/components/Heading.svelte";
   import AudioPicker from "$lib/components/AudioPicker.svelte";
   import MakeCall from "$lib/components/MakeCall.svelte";
   import ColumnHeader from "$lib/components/ColumnHeader.svelte";
-  import { onMount } from "svelte";
   import EventLog from "$lib/components/EventLog.svelte";
   import IncomingCall from "$lib/components/IncomingCall.svelte";
   import VolumeIndicator from "$lib/components/VolumeIndicator.svelte";
 
   import axios from "axios";
+  import { Call, Device } from "@twilio/voice-sdk";
+  import { browser } from "$app/environment";
 
   let device: Device;
   let devices: MediaDeviceInfo[] = [];
   let ringDevices: MediaDeviceInfo[] = [];
   let speakerDevices: MediaDeviceInfo[] = [];
-  let Twilio;
   let name;
   let token;
   let logText = "";
   let activeCall: Call;
-
-  let loaded = false;
 
   $: ringDevices, updateSelectedDevices("ringtone");
   $: speakerDevices, updateSelectedDevices("speaker");
@@ -31,28 +27,24 @@
     logText += "> " + e + "\r";
   };
 
-  if (browser) {
-    onMount(async () => {
-      await import("./twilio.min.js");
-      Twilio = window["Twilio"];
-      loaded = true;
-    });
-  }
-
   const getToken = async () => {
-    let res = await axios.get("/token");
+    const res = await axios.get("/token");
     name = res.data.identity;
     token = res.data.token;
-    intitializeDevice();
+    await intitializeDevice();
     addListeners();
   };
 
   const intitializeDevice = async () => {
-    device = new Twilio.Device(token, {
+    await import("@twilio/voice-sdk/dist/twilio");
+    const Device = window["Twilio"].Device;
+    console.log("ddd", Device);
+    device = new Device(token, {
       logLevel: 1,
-      codecPreferences: ["opus", "pcmu"],
+      codecPreferences: [Call.Codec.Opus, Call.Codec.PCMU],
     });
-    device.register();
+
+    await device.register();
     log("Device Registered");
     await navigator.mediaDevices.getUserMedia({ audio: true });
     devices = [...device.audio.availableOutputDevices].map((item) => item[1]);
@@ -62,9 +54,14 @@
   };
 
   const addListeners = () => {
-    // device.audio.on("deviceChange", updateAllAudioDevices.bind(device));
+    device.on("tokenWillExpire", () => {
+      //     const token = getNewTokenViaAjax(); call API to get new token
+      console.log("twilio token expired");
+      //device.updateToken(token);
+    });
+
     device.audio.on("deviceChange", (e) => {
-      // console.log("device Change", e);
+      console.log("device change", e);
     });
 
     device.on("registered", function () {
@@ -81,13 +78,13 @@
   const updateSelectedDevices = async (type: "speaker" | "ringtone") => {
     if (!device || !browser) return;
     if (type === "speaker" && speakerDevices.length > 0) {
-      let selectedDevices = speakerDevices.map((i) => i.deviceId);
+      const selectedDevices = speakerDevices.map((i) => i.deviceId);
       await device.audio.speakerDevices.set(selectedDevices);
       log("Updated speaker device.");
       return;
     }
     if (type === "ringtone" && ringDevices.length > 0) {
-      let selectedDevices = ringDevices.map((i) => i.deviceId);
+      const selectedDevices = ringDevices.map((i) => i.deviceId);
       await device.audio.ringtoneDevices.set(selectedDevices);
       log("Updated ringtone device.");
       return;
@@ -101,13 +98,16 @@
       user: name,
     };
 
-    if (device) {
+    try {
       log(`Attempting to call ${params.To} ...`);
+      console.log("device", device);
+      console.log("params", params);
       const call = await device.connect({ params });
       console.log("call", call);
       activeCall = call;
-    } else {
+    } catch (err) {
       log("Unable to make call.");
+      console.log("err", err);
     }
   }
   const handleIncomingCall = (call) => {
@@ -117,38 +117,36 @@
   };
 </script>
 
-{#if loaded}
-  <Heading on:click={getToken} />
-  {#if device}
-    <section>
-      <div class="row">
-        <div class="col-lg-4 col-sm-12">
-          <ColumnHeader>Your Device Info</ColumnHeader>
-          {#if name}
-            <p>Your client Name: {name}</p>
-          {/if}
-          <AudioPicker
-            {devices}
-            deviceType="Ringtone Devices"
-            bind:selectedDevices={ringDevices}
-          />
-          <AudioPicker
-            {devices}
-            deviceType="Speaker Devices"
-            bind:selectedDevices={speakerDevices}
-          />
-        </div>
-        <div class="col-lg-4 col-sm-12">
-          <MakeCall on:dial={makeOutgoingCall} />
-          <IncomingCall bind:incomingCall={activeCall} {log} />
-          <VolumeIndicator bind:call={activeCall} />
-        </div>
-        <div class="col-lg-4 col-sm-12">
-          <EventLog {logText} />
-        </div>
+<Heading on:click={getToken} />
+{#if device}
+  <section>
+    <div class="row">
+      <div class="col-lg-4 col-sm-12">
+        <ColumnHeader>Your Device Info</ColumnHeader>
+        {#if name}
+          <p>Your client Name: {name}</p>
+        {/if}
+        <AudioPicker
+          {devices}
+          deviceType="Ringtone Devices"
+          bind:selectedDevices={ringDevices}
+        />
+        <AudioPicker
+          {devices}
+          deviceType="Speaker Devices"
+          bind:selectedDevices={speakerDevices}
+        />
       </div>
-    </section>
-  {/if}
+      <div class="col-lg-4 col-sm-12">
+        <MakeCall on:dial={makeOutgoingCall} />
+        <IncomingCall bind:incomingCall={activeCall} {log} />
+        <VolumeIndicator bind:call={activeCall} />
+      </div>
+      <div class="col-lg-4 col-sm-12">
+        <EventLog {logText} />
+      </div>
+    </div>
+  </section>
 {/if}
 
 <section class="debug">
@@ -167,7 +165,7 @@
   .debug {
     border: 1px solid black;
     width: 100%;
-    margin: 1rem;
     padding: 1rem;
+    margin-top: 1rem;
   }
 </style>
