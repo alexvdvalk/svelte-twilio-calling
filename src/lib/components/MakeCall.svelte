@@ -1,6 +1,7 @@
 <script>
   import ColumnHeader from "./ColumnHeader.svelte";
   import { createEventDispatcher } from "svelte";
+  import Button, { Label } from "@smui/button";
 
   const dispatch = createEventDispatcher();
 
@@ -16,7 +17,7 @@
   <form on:submit|preventDefault={makeCall}>
     <label for="dial">Enter a phone number or client name</label>
     <input id="dial" bind:value={numbertoDial} placeholder="+441234567890" />
-    <button type="submit">Call</button>
+    <Button variant="raised" type="submit"><Label>Call</Label></Button>
   </form>
 </div>
 

@@ -6,6 +6,7 @@
   import EventLog from "$lib/components/EventLog.svelte";
   import IncomingCall from "$lib/components/IncomingCall.svelte";
   import VolumeIndicator from "$lib/components/VolumeIndicator.svelte";
+  import LayoutGrid, { Cell } from "@smui/layout-grid";
 
   import axios from "axios";
   import { Call, Device } from "@twilio/voice-sdk";
@@ -15,8 +16,7 @@
   let devices: MediaDeviceInfo[] = [];
   let ringDevices: MediaDeviceInfo[] = [];
   let speakerDevices: MediaDeviceInfo[] = [];
-  let name;
-  let token;
+  let identity;
   let logText = "";
   let activeCall: Call;
 
@@ -29,16 +29,13 @@
 
   const getToken = async () => {
     const res = await axios.get("/token");
-    name = res.data.identity;
-    token = res.data.token;
-    await intitializeDevice();
+    identity = res.data.identity;
+    await intitializeDevice(res.data.token);
     addListeners();
   };
 
-  const intitializeDevice = async () => {
-    await import("@twilio/voice-sdk/dist/twilio");
+  const intitializeDevice = async (token: string) => {
     const Device = window["Twilio"].Device;
-    console.log("ddd", Device);
     device = new Device(token, {
       logLevel: 1,
       codecPreferences: [Call.Codec.Opus, Call.Codec.PCMU],
@@ -51,6 +48,7 @@
     log(`Got ${devices.length} devices.`);
     ringDevices = [devices[0]];
     speakerDevices = [devices[0]];
+    console.log("dev", device);
   };
 
   const addListeners = () => {
@@ -92,16 +90,13 @@
   };
 
   async function makeOutgoingCall(e) {
-    var params = {
+    const params = {
       // get the phone number to call from the DOM
       To: e.detail,
-      user: name,
     };
 
     try {
       log(`Attempting to call ${params.To} ...`);
-      console.log("device", device);
-      console.log("params", params);
       const call = await device.connect({ params });
       console.log("call", call);
       activeCall = call;
@@ -117,14 +112,14 @@
   };
 </script>
 
-<Heading on:click={getToken} />
-{#if device}
-  <section>
-    <div class="row">
-      <div class="col-lg-4 col-sm-12">
+{#await import("@twilio/voice-sdk/dist/twilio") then _}
+  <Heading on:click={getToken} />
+  {#if device}
+    <LayoutGrid>
+      <Cell>
         <ColumnHeader>Your Device Info</ColumnHeader>
-        {#if name}
-          <p>Your client Name: {name}</p>
+        {#if identity}
+          <p>Your client Name: {identity}</p>
         {/if}
         <AudioPicker
           {devices}
@@ -136,27 +131,27 @@
           deviceType="Speaker Devices"
           bind:selectedDevices={speakerDevices}
         />
-      </div>
-      <div class="col-lg-4 col-sm-12">
+      </Cell>
+      <Cell>
         <MakeCall on:dial={makeOutgoingCall} />
         <IncomingCall bind:incomingCall={activeCall} {log} />
         <VolumeIndicator bind:call={activeCall} />
-      </div>
-      <div class="col-lg-4 col-sm-12">
+      </Cell>
+      <Cell>
         <EventLog {logText} />
-      </div>
-    </div>
-  </section>
-{/if}
+      </Cell>
+    </LayoutGrid>
+  {/if}
 
-<section class="debug">
-  <ul>
-    <li>Active Call: {activeCall}</li>
-    <li>Device: {device}</li>
-    <li>User: {name}</li>
-    <li>Token: {token}</li>
-  </ul>
-</section>
+  <section class="debug">
+    <ul>
+      <li>Active Call: {activeCall}</li>
+      <li>Device: {device}</li>
+      <li>User: {identity}</li>
+      <li>Token: {device?.token}</li>
+    </ul>
+  </section>
+{/await}
 
 <style>
   div {
